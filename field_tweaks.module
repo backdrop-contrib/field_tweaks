@@ -22,7 +22,43 @@ function field_tweaks_help($path, $arg) {
  *   configuration.
  */
 function field_tweaks_form_field_ui_field_overview_form_alter(&$form, &$form_state) {
-  // Intentionally empty; to be implemented.
+  $entity_type = isset($form['#entity_type']) ? $form['#entity_type'] : NULL;
+  $bundle = isset($form['#bundle']) ? $form['#bundle'] : NULL;
+
+  if (!$entity_type || !$bundle) {
+    return;
+  }
+
+  $config = config('field_tweaks.settings');
+  $bundle_settings = $config->get('bundle_settings');
+  if (empty($bundle_settings[$bundle]['suggest_bundle_prefix'])) {
+    return;
+  }
+
+  $raw_prefix = isset($bundle_settings[$bundle]['machine_name_prefix']) ? $bundle_settings[$bundle]['machine_name_prefix'] : $bundle;
+  $prefix = field_tweaks_sanitize_machine_prefix($raw_prefix);
+  if ($prefix === '') {
+    return;
+  }
+
+  if (empty($form['fields']['_add_new_field']['field_name'])) {
+    return;
+  }
+
+  $machine = &$form['fields']['_add_new_field']['field_name'];
+  $display_prefix = 'field_' . $prefix . '_';
+  $max_length = 32 - strlen($display_prefix);
+  if ($max_length < 1) {
+    $max_length = 1;
+  }
+
+  $machine['#field_prefix'] = '<span dir="ltr">' . check_plain($display_prefix) . '</span>&lrm;';
+  $machine['#maxlength'] = $max_length;
+  $machine['#field_tweaks_prefix'] = $prefix;
+  $machine['#element_validate'][] = 'field_tweaks_add_new_field_prefix_validate';
+
+  // Clarify description with the current prefix.
+  $machine['#description'] = t('A unique machine-readable name containing letters, numbers, and underscores. Suggested prefix: @prefix', array('@prefix' => $display_prefix));
 }
 
 /**
@@ -41,9 +77,9 @@ function field_tweaks_menu() {
   );
 
   $items['admin/structure/types/manage/%node_type/fields/tweaks'] = array(
-    'title' => 'Field tweaks',
+    'title' => 'Settings',
     'page callback' => 'backdrop_get_form',
-    'page arguments' => array('field_tweaks_bundle_settings_form', 'node', 2),
+    'page arguments' => array('field_tweaks_bundle_settings_form', 'node', 4),
     'type' => MENU_LOCAL_TASK,
     'weight' => -98,
     'access callback' => 'user_access',
@@ -57,6 +93,14 @@ function field_tweaks_menu() {
  * Form for per-bundle Field Tweaks settings.
  */
 function field_tweaks_bundle_settings_form($form, &$form_state, $entity_type, $bundle) {
+  // Normalize bundle to machine name string.
+  if (is_object($bundle) && isset($bundle->type)) {
+    $bundle_name = $bundle->type;
+  }
+  else {
+    $bundle_name = $bundle;
+  }
+
   $config = config('field_tweaks.settings');
   $bundle_settings = $config->get('bundle_settings');
   if (!is_array($bundle_settings)) {
@@ -65,14 +109,15 @@ function field_tweaks_bundle_settings_form($form, &$form_state, $entity_type, $b
 
   $defaults = array(
     'suggest_bundle_prefix' => FALSE,
+    'machine_name_prefix' => $bundle_name,
     'trim_text_on_save' => FALSE,
   );
-  $current = !empty($bundle_settings[$bundle]) ? $bundle_settings[$bundle] : array();
+  $current = !empty($bundle_settings[$bundle_name]) ? $bundle_settings[$bundle_name] : array();
   $settings = $current + $defaults;
 
   $form['bundle'] = array(
     '#type' => 'value',
-    '#value' => $bundle,
+    '#value' => $bundle_name,
   );
   $form['entity_type'] = array(
     '#type' => 'value',
@@ -91,6 +136,20 @@ function field_tweaks_bundle_settings_form($form, &$form_state, $entity_type, $b
     '#title' => t('Suggest bundle-prefixed machine names'),
     '#default_value' => $settings['suggest_bundle_prefix'],
     '#description' => t('When creating a new field on this content type, suggest machine names that include the bundle machine name (planned).'),
+  );
+
+  $form['field_tweaks']['machine_name_prefix'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Suggested machine name prefix'),
+    '#default_value' => $settings['machine_name_prefix'],
+    '#size' => 24,
+    '#maxlength' => 32,
+    '#description' => t('Prefix to prepend when suggesting new field machine names. Defaults to the bundle machine name; can be shortened (for example, @example).', array('@example' => $bundle_name ? $bundle_name : 'post')),
+    '#states' => array(
+      'visible' => array(
+        ':input[name="field_tweaks[suggest_bundle_prefix]"]' => array('checked' => TRUE),
+      ),
+    ),
   );
 
   $form['field_tweaks']['trim_text_on_save'] = array(
@@ -121,8 +180,14 @@ function field_tweaks_bundle_settings_form_submit($form, &$form_state) {
   }
 
   $values = isset($form_state['values']['field_tweaks']) ? $form_state['values']['field_tweaks'] : array();
+  $prefix = isset($values['machine_name_prefix']) ? trim($values['machine_name_prefix']) : '';
+  if ($prefix === '' && $bundle) {
+    $prefix = $bundle;
+  }
+  $prefix = field_tweaks_sanitize_machine_prefix($prefix);
   $bundle_settings[$bundle] = array(
     'suggest_bundle_prefix' => !empty($values['suggest_bundle_prefix']),
+    'machine_name_prefix' => $prefix,
     'trim_text_on_save' => !empty($values['trim_text_on_save']),
   );
 
@@ -141,4 +206,34 @@ function field_tweaks_bundle_settings_form_submit($form, &$form_state) {
  */
 function field_tweaks_field_attach_presave($entity_type, $entity) {
   // Intentionally empty; to be implemented.
+}
+
+/**
+ * Sanitizes a machine name prefix fragment.
+ */
+function field_tweaks_sanitize_machine_prefix($prefix) {
+  $prefix = backdrop_strtolower($prefix);
+  $prefix = preg_replace('/[^a-z0-9_]+/', '_', $prefix);
+  $prefix = trim($prefix, '_');
+  // Collapse multiple underscores.
+  $prefix = preg_replace('/_+/', '_', $prefix);
+  return $prefix;
+}
+
+/**
+ * Element validate: prepend configured prefix to new field machine names.
+ */
+function field_tweaks_add_new_field_prefix_validate($element, &$form_state, $form) {
+  if (empty($element['#field_tweaks_prefix'])) {
+    return;
+  }
+  $prefix = $element['#field_tweaks_prefix'];
+  $value = isset($element['#value']) ? trim($element['#value']) : '';
+  if ($value === '') {
+    return;
+  }
+
+  // Avoid double-prefixing if the user typed it manually.
+  $prefixed_value = (strpos($value, $prefix . '_') === 0) ? $value : $prefix . '_' . $value;
+  form_set_value($element, $prefixed_value, $form_state);
 }
