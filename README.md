@@ -1,23 +1,18 @@
 # Field Tweaks
 
-Helpers that improve field authoring hygiene without changing Backdrop core. It currently targets two requests:
+Helpers that improve field authoring hygiene without changing Backdrop core. It delivers two opt-in features:
 
 1. Suggest machine names that include the target bundle machine name when creating a new field (backdrop/backdrop-issues#6172), as an opt-in UX aid with optional custom prefix override.
 2. Provide trimming of leading/trailing whitespace for text-based fields before they are saved (backdrop/backdrop-issues#6386), with bundle-level modes: off, trim all, or enable per-field toggles.
 
-## Status
+## Admin surface
 
-This is scaffold only. Hooks are stubbed in `field_tweaks.module`; no behavior ships yet.
-
-## Planned admin surface
-
-- Per-content-type toggles on a new secondary tab under `Manage fields` (e.g., `.../manage/post/fields/tweaks`), including a custom machine-name prefix value and trim mode selection, stored in `field_tweaks.settings`.
-- When trim mode is set to per-field, a checkbox appears on text field instance settings to enable trimming for that field.
-- Per-field setting on text field instances to enable trimming.
+- Per-content-type toggles on a secondary tab under `Manage fields` (e.g., `.../manage/post/fields/tweaks`), including custom machine-name prefix and trim mode selection, stored in `field_tweaks.settings`.
+- When trim mode is set to per-field, a checkbox appears on text field instance settings (Edit tab) to enable trimming for that field.
 
 ## Install
 
-Place the module in `modules/custom`, enable it, then configure at the path above once implemented.
+Place the module in `modules/custom`, enable it, then configure per content type under `Manage fields > Settings`.
 
 ## Notes
 

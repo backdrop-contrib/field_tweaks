@@ -15,11 +15,10 @@ function field_tweaks_help($path, $arg) {
 }
 
 /**
- * Placeholder: alter the add-field UI to suggest bundle-prefixed machine names.
+ * Alter the add-field UI to suggest bundle-prefixed machine names.
  *
- * @todo Implement opt-in machine name suggestions that include the target
- *   bundle machine name (backdrop/backdrop-issues#6172), gated by module
- *   configuration.
+ * Provides opt-in machine name suggestions that include a configurable bundle
+ * prefix (backdrop/backdrop-issues#6172), controlled per content type.
  */
 function field_tweaks_form_field_ui_field_overview_form_alter(&$form, &$form_state) {
   $entity_type = isset($form['#entity_type']) ? $form['#entity_type'] : NULL;
@@ -203,11 +202,10 @@ function field_tweaks_bundle_settings_form_submit($form, &$form_state) {
 }
 
 /**
- * Placeholder: add a per-field "trim whitespace" setting and enforce it.
+ * Trim text fields on presave according to bundle/field settings.
  *
- * @todo Provide a field setting for text-based fields that trims leading and
- *   trailing whitespace before save (backdrop/backdrop-issues#6386). Consider
- *   widget-level or formatter-level controls if they better match Backdrop UX.
+ * Supports bundle-level modes (off, all text fields, per-field) and a
+ * per-instance checkbox for text fields (backdrop/backdrop-issues#6386).
  */
 function field_tweaks_field_attach_presave($entity_type, $entity) {
   $bundle = field_extract_bundle($entity_type, $entity);
