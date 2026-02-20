@@ -1,21 +1,43 @@
-# Field Tweaks
+Field Tweaks
+============
 
-Helpers that improve field authoring hygiene without changing Backdrop core. It delivers two opt-in features:
+Field Tweaks adds opt-in conveniences for field creation and text hygiene:
+bundle-prefixed machine-name suggestions (with custom prefix support) and
+leading/trailing whitespace trimming for text fields (global or per-field).
 
-1. Suggest machine names that include the target bundle machine name when creating a new field (backdrop/backdrop-issues#6172), as an opt-in UX aid with optional custom prefix override.
-2. Provide trimming of leading/trailing whitespace for text-based fields before they are saved (backdrop/backdrop-issues#6386), with bundle-level modes: off, trim all, or enable per-field toggles.
+Requirements
+------------
 
-## Admin surface
+This module has no additional dependencies beyond Backdrop core.
 
-- Per-content-type toggles on a secondary tab under `Manage fields` (e.g., `.../manage/post/fields/tweaks`), including custom machine-name prefix and trim mode selection, stored in `field_tweaks.settings`.
-- When trim mode is set to per-field, a checkbox appears on text field instance settings (Edit tab) to enable trimming for that field.
+Installation
+------------
 
-## Install
+- Place this module in `modules/contrib` and enable it.
+- For each content type, open `Manage fields > Settings` to:
+  - Enable bundle-prefixed machine-name suggestions and set an optional prefix.
+  - Choose a trim mode: off, trim all text fields, or per-field control.
+- If using per-field trim mode, edit individual text fields (Edit tab) and
+ check “Trim leading/trailing whitespace on save.”
+- Clear caches if new UI elements do not appear.
 
-Place the module in `modules/custom`, enable it, then configure per content type under `Manage fields > Settings`.
+Issues
+------
 
-## Notes
+Report bugs and feature requests in this project’s issue queue.
 
-- Keep features opt-in to avoid surprises with shared fields and existing content.
-- Machine name suggestions must respect the 32-character limit and shared-field workflows.
-- Trimming should run late in presave to catch programmatic writes as well as UI submissions.
+Current Maintainers
+-------------------
+
+- [alanmels](https://github.com/alanmels)
+
+Credits
+-------
+
+- Sponsored by [AltaGrade](https://www.altagrade.com)
+
+License
+-------
+
+This project is GPL v2 software. See the LICENSE.txt file in this directory for
+the complete text.
