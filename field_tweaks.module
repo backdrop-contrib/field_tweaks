@@ -110,7 +110,7 @@ function field_tweaks_bundle_settings_form($form, &$form_state, $entity_type, $b
   $defaults = array(
     'suggest_bundle_prefix' => FALSE,
     'machine_name_prefix' => $bundle_name,
-    'trim_text_on_save' => FALSE,
+    'trim_mode' => 'off',
   );
   $current = !empty($bundle_settings[$bundle_name]) ? $bundle_settings[$bundle_name] : array();
   $settings = $current + $defaults;
@@ -153,10 +153,15 @@ function field_tweaks_bundle_settings_form($form, &$form_state, $entity_type, $b
   );
 
   $form['field_tweaks']['trim_text_on_save'] = array(
-    '#type' => 'checkbox',
+    '#type' => 'radios',
     '#title' => t('Trim text values on save'),
-    '#default_value' => $settings['trim_text_on_save'],
-    '#description' => t('Remove leading and trailing whitespace from text-based fields on this content type before saving (planned).'),
+    '#default_value' => $settings['trim_mode'],
+    '#options' => array(
+      'off' => t('Do not trim'),
+      'all' => t('Trim all text fields on this content type'),
+      'per_field' => t('Allow trimming to be enabled per field'),
+    ),
+    '#description' => t('Remove leading and trailing whitespace from text-based fields on save. Choose global trimming or enable per-field control.'),
   );
 
   $form['actions'] = array('#type' => 'actions');
@@ -188,7 +193,7 @@ function field_tweaks_bundle_settings_form_submit($form, &$form_state) {
   $bundle_settings[$bundle] = array(
     'suggest_bundle_prefix' => !empty($values['suggest_bundle_prefix']),
     'machine_name_prefix' => $prefix,
-    'trim_text_on_save' => !empty($values['trim_text_on_save']),
+    'trim_mode' => isset($values['trim_text_on_save']) ? $values['trim_text_on_save'] : 'off',
   );
 
   $config->set('bundle_settings', $bundle_settings);
@@ -205,7 +210,114 @@ function field_tweaks_bundle_settings_form_submit($form, &$form_state) {
  *   widget-level or formatter-level controls if they better match Backdrop UX.
  */
 function field_tweaks_field_attach_presave($entity_type, $entity) {
-  // Intentionally empty; to be implemented.
+  $bundle = field_extract_bundle($entity_type, $entity);
+
+  $config = config('field_tweaks.settings');
+  $bundle_settings = $config->get('bundle_settings');
+  $trim_mode = isset($bundle_settings[$bundle]['trim_mode']) ? $bundle_settings[$bundle]['trim_mode'] : 'off';
+  if ($trim_mode === 'off') {
+    return;
+  }
+
+  $instances = field_info_instances($entity_type, $bundle);
+  if (empty($instances)) {
+    return;
+  }
+
+  $text_types = array('text', 'text_long', 'text_with_summary');
+
+  foreach ($instances as $field_name => $instance) {
+    $field = field_info_field($field_name);
+    if (!$field || !in_array($field['type'], $text_types, TRUE)) {
+      continue;
+    }
+
+    // If per-field mode is enabled, honor the instance toggle.
+    if ($trim_mode === 'per_field') {
+      $instance_setting = !empty($instance['settings']['field_tweaks_trim']) ? TRUE : FALSE;
+      if (!$instance_setting) {
+        continue;
+      }
+    }
+
+    $langcode = field_language($entity_type, $entity, $field_name);
+    if (empty($langcode) || empty($entity->{$field_name}[$langcode])) {
+      continue;
+    }
+
+    foreach ($entity->{$field_name}[$langcode] as &$item) {
+      if (isset($item['value']) && is_string($item['value'])) {
+        $item['value'] = field_tweaks_trim_edges($item['value']);
+      }
+      if (isset($item['summary']) && is_string($item['summary'])) {
+        $item['summary'] = field_tweaks_trim_edges($item['summary']);
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_field_instance_settings_form().
+ */
+function field_tweaks_field_instance_settings_form($field, $instance) {
+  $text_types = array('text', 'text_long', 'text_with_summary');
+  if (!in_array($field['type'], $text_types, TRUE)) {
+    return array();
+  }
+
+  $config = config('field_tweaks.settings');
+  $bundle_settings = $config->get('bundle_settings');
+  $bundle = $instance['bundle'];
+  $trim_mode = isset($bundle_settings[$bundle]['trim_mode']) ? $bundle_settings[$bundle]['trim_mode'] : 'off';
+
+  if ($trim_mode !== 'per_field') {
+    return array();
+  }
+
+  $form['field_tweaks_trim'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Trim leading/trailing whitespace on save'),
+    '#default_value' => !empty($instance['settings']['field_tweaks_trim']),
+    '#description' => t('If checked, values for this field will be trimmed when saved.'),
+  );
+
+  return $form;
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for field_ui_field_edit_form.
+ */
+function field_tweaks_form_field_ui_field_edit_form_alter(&$form, &$form_state, $form_id) {
+  if (empty($form['#field']) || empty($form['#instance'])) {
+    return;
+  }
+  $field = $form['#field'];
+  $instance = $form['#instance'];
+
+  $text_types = array('text', 'text_long', 'text_with_summary');
+  if (!in_array($field['type'], $text_types, TRUE)) {
+    return;
+  }
+
+  $config = config('field_tweaks.settings');
+  $bundle_settings = $config->get('bundle_settings');
+  $bundle = $instance['bundle'];
+  $trim_mode = isset($bundle_settings[$bundle]['trim_mode']) ? $bundle_settings[$bundle]['trim_mode'] : 'off';
+  if ($trim_mode !== 'per_field') {
+    return;
+  }
+
+  if (!isset($form['instance']['settings']) || !is_array($form['instance']['settings'])) {
+    $form['instance']['settings'] = array();
+  }
+
+  $form['instance']['settings']['field_tweaks_trim'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Trim leading/trailing whitespace on save'),
+    '#default_value' => !empty($instance['settings']['field_tweaks_trim']),
+    '#description' => t('If checked, values for this field will be trimmed when saved.'),
+    '#weight' => 50,
+  );
 }
 
 /**
@@ -218,6 +330,13 @@ function field_tweaks_sanitize_machine_prefix($prefix) {
   // Collapse multiple underscores.
   $prefix = preg_replace('/_+/', '_', $prefix);
   return $prefix;
+}
+
+/**
+ * Trim helper for field values (leading/trailing only).
+ */
+function field_tweaks_trim_edges($value) {
+  return trim($value);
 }
 
 /**
