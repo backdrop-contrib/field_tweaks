@@ -1,0 +1,7 @@
+type = module
+name = Field Tweaks
+description = Opt-in helpers for field machine names and text value hygiene.
+package = Field UI
+version = 1.x-0.x-dev
+backdrop = 1.x
+configure = admin/config/content/field-tweaks

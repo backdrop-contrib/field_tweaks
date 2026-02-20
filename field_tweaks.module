@@ -1,0 +1,144 @@
+<?php
+
+/**
+ * @file
+ * Field Tweaks provides small, opt-in improvements for field UI and storage.
+ */
+
+/**
+ * Implements hook_help().
+ */
+function field_tweaks_help($path, $arg) {
+  if ($path === 'admin/help#field_tweaks') {
+    return '<p>Provides optional helpers for field machine names and trimming text values.</p>';
+  }
+}
+
+/**
+ * Placeholder: alter the add-field UI to suggest bundle-prefixed machine names.
+ *
+ * @todo Implement opt-in machine name suggestions that include the target
+ *   bundle machine name (backdrop/backdrop-issues#6172), gated by module
+ *   configuration.
+ */
+function field_tweaks_form_field_ui_field_overview_form_alter(&$form, &$form_state) {
+  // Intentionally empty; to be implemented.
+}
+
+/**
+ * Implements hook_menu().
+ */
+function field_tweaks_menu() {
+  $items = array();
+
+  // Secondary tabs for content type Manage fields.
+  $items['admin/structure/types/manage/%node_type/fields/overview'] = array(
+    'title' => 'Overview',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -99,
+    'access callback' => 'user_access',
+    'access arguments' => array('administer fields'),
+  );
+
+  $items['admin/structure/types/manage/%node_type/fields/tweaks'] = array(
+    'title' => 'Field tweaks',
+    'page callback' => 'backdrop_get_form',
+    'page arguments' => array('field_tweaks_bundle_settings_form', 'node', 2),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => -98,
+    'access callback' => 'user_access',
+    'access arguments' => array('administer fields'),
+  );
+
+  return $items;
+}
+
+/**
+ * Form for per-bundle Field Tweaks settings.
+ */
+function field_tweaks_bundle_settings_form($form, &$form_state, $entity_type, $bundle) {
+  $config = config('field_tweaks.settings');
+  $bundle_settings = $config->get('bundle_settings');
+  if (!is_array($bundle_settings)) {
+    $bundle_settings = array();
+  }
+
+  $defaults = array(
+    'suggest_bundle_prefix' => FALSE,
+    'trim_text_on_save' => FALSE,
+  );
+  $current = !empty($bundle_settings[$bundle]) ? $bundle_settings[$bundle] : array();
+  $settings = $current + $defaults;
+
+  $form['bundle'] = array(
+    '#type' => 'value',
+    '#value' => $bundle,
+  );
+  $form['entity_type'] = array(
+    '#type' => 'value',
+    '#value' => $entity_type,
+  );
+
+  $form['field_tweaks'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Field Tweaks'),
+    '#description' => t('Opt-in helpers for machine name suggestions and trimming text values for this content type.'),
+    '#tree' => TRUE,
+  );
+
+  $form['field_tweaks']['suggest_bundle_prefix'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Suggest bundle-prefixed machine names'),
+    '#default_value' => $settings['suggest_bundle_prefix'],
+    '#description' => t('When creating a new field on this content type, suggest machine names that include the bundle machine name (planned).'),
+  );
+
+  $form['field_tweaks']['trim_text_on_save'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Trim text values on save'),
+    '#default_value' => $settings['trim_text_on_save'],
+    '#description' => t('Remove leading and trailing whitespace from text-based fields on this content type before saving (planned).'),
+  );
+
+  $form['actions'] = array('#type' => 'actions');
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save settings'),
+  );
+
+  return $form;
+}
+
+/**
+ * Submit handler for bundle settings form.
+ */
+function field_tweaks_bundle_settings_form_submit($form, &$form_state) {
+  $bundle = $form_state['values']['bundle'];
+  $config = config('field_tweaks.settings');
+  $bundle_settings = $config->get('bundle_settings');
+  if (!is_array($bundle_settings)) {
+    $bundle_settings = array();
+  }
+
+  $values = isset($form_state['values']['field_tweaks']) ? $form_state['values']['field_tweaks'] : array();
+  $bundle_settings[$bundle] = array(
+    'suggest_bundle_prefix' => !empty($values['suggest_bundle_prefix']),
+    'trim_text_on_save' => !empty($values['trim_text_on_save']),
+  );
+
+  $config->set('bundle_settings', $bundle_settings);
+  $config->save();
+
+  backdrop_set_message(t('Field Tweaks settings saved.'));
+}
+
+/**
+ * Placeholder: add a per-field "trim whitespace" setting and enforce it.
+ *
+ * @todo Provide a field setting for text-based fields that trims leading and
+ *   trailing whitespace before save (backdrop/backdrop-issues#6386). Consider
+ *   widget-level or formatter-level controls if they better match Backdrop UX.
+ */
+function field_tweaks_field_attach_presave($entity_type, $entity) {
+  // Intentionally empty; to be implemented.
+}
