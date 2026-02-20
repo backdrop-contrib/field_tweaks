@@ -29,7 +29,7 @@ Report bugs and feature requests in this project’s issue queue.
 Current Maintainers
 -------------------
 
-- [alanmels](https://github.com/alanmels)
+- [Alan Mels](https://github.com/alanmels)
 
 Credits
 -------
